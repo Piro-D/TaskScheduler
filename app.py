@@ -28,11 +28,16 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 ACTIVE_SCHEDULE_FILE = 'active_schedule.json'
 
 # ==========================================
-# FILE-BASED STATE MANAGEMENT (Bypasses 4KB Cookie Limit)
+# FILE-BASED STATE MANAGEMENT (Tasks, Events, AND Settings)
 # ==========================================
 def load_state():
-    """Load the task backlog and calendar events from a local file safely."""
-    default_state = {"tasks": [], "events": []}
+    """Load the task backlog, calendar events, and settings from a local file safely."""
+    default_settings = {
+        "attention_span": config.DEFAULT_ATTENTION_SPAN,
+        "break_duration": config.DEFAULT_BREAK_DURATION,
+        "working_hours_config": {day: [{"start": "08:00", "end": "20:00"}] for day in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]}
+    }
+    default_state = {"tasks": [], "events": [], "settings": default_settings}
     
     if not os.path.exists(ACTIVE_SCHEDULE_FILE):
         return default_state
@@ -40,20 +45,24 @@ def load_state():
     try:
         with open(ACTIVE_SCHEDULE_FILE, 'r') as f:
             data = json.load(f)
-            # Ensure the keys exist, if not, return default
-            if 'tasks' in data and 'events' in data:
-                return data
-            else:
-                return default_state
+            # Ensure the keys exist, if not, patch them in with defaults
+            if 'settings' not in data:
+                data['settings'] = default_settings
+            if 'tasks' not in data:
+                data['tasks'] = []
+            if 'events' not in data:
+                data['events'] = []
+            return data
     except (json.JSONDecodeError, KeyError):
-        # If the file is corrupted JSON, return default and potentially back up the bad file
-        print("⚠️ Warning: active_schedule.json was corrupted. Resetting to empty state.")
         return default_state
 
-def save_state(tasks, events):
-    """Save the task backlog and calendar events to a local file."""
+def save_state(tasks, events, settings=None):
+    """Save the state to a local file. Keeps existing settings if none are provided."""
+    if settings is None:
+        settings = load_state()['settings']
+        
     with open(ACTIVE_SCHEDULE_FILE, 'w') as f:
-        json.dump({"tasks": tasks, "events": events}, f, indent=4)
+        json.dump({"tasks": tasks, "events": events, "settings": settings}, f, indent=4)
 
 def sync_calendar(tasks):
     """
@@ -62,15 +71,18 @@ def sync_calendar(tasks):
     """
     state = load_state()
     
-    # We combine the session settings with the file-based event IDs for the calendar service
+    # We combine the session credentials with the file-based settings and event IDs
     sync_data = dict(session)
+    sync_data['attention_span'] = state['settings']['attention_span']
+    sync_data['break_duration'] = state['settings']['break_duration']
+    sync_data['working_hours_config'] = state['settings']['working_hours_config']
     sync_data['active_event_ids'] = state.get('events', [])
     
     # Push to Google Calendar
     new_event_ids = push_to_calendar(tasks, sync_data)
     
     # Save the updated task list and new calendar IDs to our file
-    save_state(tasks, new_event_ids)
+    save_state(tasks, new_event_ids, state['settings'])
 
 # ==========================================
 # ML PIPELINE INTEGRATION
@@ -106,22 +118,19 @@ def run_ml_decomposition(filepath):
 @app.route('/')
 def index():
     logged_in = 'credentials' in session
-    current_span = session.get('attention_span', config.DEFAULT_ATTENTION_SPAN)
-    break_duration = session.get('break_duration', config.DEFAULT_BREAK_DURATION)
-    
     message = request.args.get('message')
     active_tab = request.args.get('tab', 'pipeline')
-    
     decompose_result = session.pop('decompose_result', None)
     estimate_result = session.pop('estimate_result', None)
     
-    default_config = {day: [{"start": "08:00", "end": "20:00"}] for day in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]}
-    working_hours_config = session.get('working_hours_config', default_config)
-    
-    # Fetch the accumulative task backlog from the FILE, not the session!
+    # Fetch EVERYTHING from the persistent file state
     state = load_state()
     saved_tasks = state['tasks']
     has_saved_tasks = len(saved_tasks) > 0
+    
+    current_span = state['settings']['attention_span']
+    break_duration = state['settings']['break_duration']
+    working_hours_config = state['settings']['working_hours_config']
     
     return render_template(
         'index.html',
@@ -171,18 +180,22 @@ def logout():
 # ==========================================
 @app.route('/update_settings', methods=['POST'])
 def update_settings():
-    session['attention_span'] = int(request.form.get('span', config.DEFAULT_ATTENTION_SPAN))
-    session['break_duration'] = int(request.form.get('break_duration', config.DEFAULT_BREAK_DURATION))
+    state = load_state()
+    
+    # Update settings inside the state object
+    state['settings']['attention_span'] = int(request.form.get('span', config.DEFAULT_ATTENTION_SPAN))
+    state['settings']['break_duration'] = int(request.form.get('break_duration', config.DEFAULT_BREAK_DURATION))
     
     selected_days = request.form.getlist('working_days')
     new_config = {}
     for day in selected_days:
         new_config[day] = [{"start": request.form.get(f"{day}_start", "08:00"), "end": request.form.get(f"{day}_end", "20:00")}]
-    session['working_hours_config'] = new_config
-    session.modified = True 
+    state['settings']['working_hours_config'] = new_config
     
-    # Resync the calendar using the tasks from the file
-    state = load_state()
+    # Save the updated settings to the file permanently
+    save_state(state['tasks'], state.get('events', []), state['settings'])
+    
+    # Resync the calendar using the new settings
     if state['tasks'] and 'credentials' in session:
         try:
             sync_calendar(state['tasks'])
@@ -209,7 +222,6 @@ def schedule_tasks():
 
     if not new_ml_tasks: return redirect(url_for('index', message="❌ AI processing failed.", tab='pipeline'))
 
-    # Load file state, append new tasks, and resync!
     state = load_state()
     existing_tasks = state['tasks']
     
@@ -228,7 +240,6 @@ def schedule_tasks():
 # ==========================================
 @app.route('/update_backlog', methods=['POST'])
 def update_backlog():
-    """Update durations, mark tasks as complete, and resync calendar."""
     if 'credentials' not in session: return redirect(url_for('index', message="❌ Log in first."))
     
     state = load_state()
@@ -236,7 +247,6 @@ def update_backlog():
     updated_tasks = []
     
     for t_id in task_ids:
-        # If checked "Done", it is skipped and naturally deleted from the new list
         if request.form.get(f'complete_{t_id}'):
             continue
         
@@ -244,7 +254,6 @@ def update_backlog():
         new_name = request.form.get(f'name_{t_id}', "Task")
         
         if new_duration > 0:
-            # Preserve old attributes if it exists, otherwise create new
             original = next((t for t in state['tasks'] if t.get('id') == t_id), None)
             if original:
                 original['name'] = new_name
@@ -261,10 +270,9 @@ def update_backlog():
 
 @app.route('/clear_backlog', methods=['POST'])
 def clear_backlog():
-    """Wipes out all tasks and clears upcoming calendar blocks."""
     if 'credentials' in session:
         try:
-            sync_calendar([]) # Pushing an empty list deletes all events and clears the file
+            sync_calendar([]) 
         except: pass
     return redirect(url_for('index', message="🧹 All tasks cleared!", tab='pipeline'))
 
@@ -307,7 +315,6 @@ def tool_estimate():
 
 @app.route('/tool_schedule', methods=['POST'])
 def tool_schedule():
-    """APPEND Manual Tasks to Backlog"""
     if 'credentials' not in session: return redirect(url_for('index', message="❌ Log in first.", tab='schedule'))
     try:
         raw_json = request.form.get('json_tasks', '[]')
