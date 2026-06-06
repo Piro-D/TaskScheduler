@@ -34,7 +34,7 @@ def categorize_task(text):
 def preprocess_jira_data(file_path):
     df = pd.read_csv(file_path)
 
-    df = df[(df['actual_effort'] > 0) & (df['actual_effort'] < 360000)].copy()
+    # df = df[(df['actual_effort'] > 0) & (df['actual_effort'] < 360000)].copy()
 
     df['clean_text'] = df['corpus'].str.replace(r'[^a-zA-Z\s]', '', regex=True).str.lower()
     df['task_type'] = df['clean_text'].apply(categorize_task)
@@ -43,17 +43,16 @@ def preprocess_jira_data(file_path):
     labels = [1, 2, 3, 4, 5]
     df['complexity_class'] = pd.cut(df['expert_estimated_effort'], bins=bins, labels=labels)
 
-    df['word_count'] = df['clean_text'].apply(lambda x: len(str(x).split()))
 
-    return df[['clean_text', 'word_count', 'expert_estimated_effort', 'actual_effort', 'complexity_class', 'task_type']]
-
+    return df[['clean_text', 'expert_estimated_effort', 'actual_effort', 'complexity_class', 'task_type']]
 
 
 
 
+# This function is used to create cleaned_dataset.csv. It is called in duration_estimator.py
 def clean_duration_training_data(file_path):
     df = pd.read_csv(file_path)
-    df = df[(df['expert_estimated_effort'] > 0) & (df['actual_effort'] > 0)].copy()
+    df = df[ (df['actual_effort'] < 360000) & (df['expert_estimated_effort'] > 0) & (df['actual_effort'] > 0)].copy()
 
     df["effort_ratio"] = df["actual_effort"] / df["expert_estimated_effort"]
     ratio_limits = {
@@ -92,7 +91,7 @@ def clean_duration_training_data(file_path):
 
 
 
-
+# This create the preprocessed_jira_data.csv by calling the functions above
 def build_preprocessed_jira_dataset(
     source_path=config.BASE_DIR / "Datasets" / "JOSSE_DATA.csv",
     output_path=config.BASE_DIR / "Datasets" / "preprocessed_jira_data.csv",
