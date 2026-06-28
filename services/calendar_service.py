@@ -11,6 +11,7 @@ from services.oauth_service import get_credentials_from_session
 
 WIB = datetime.timezone(datetime.timedelta(hours=7), name="WIB")
 
+
 def get_calendar_service():
     """
     Build and return a Google Calendar service client.
@@ -23,7 +24,7 @@ def get_calendar_service():
     """
     try:
         credentials = get_credentials_from_session()
-        return build('calendar', 'v3', credentials=credentials)
+        return build("calendar", "v3", credentials=credentials)
     except Exception as e:
         raise RuntimeError(f"Cannot connect to Google Calendar API: {str(e)}")
 
@@ -42,20 +43,20 @@ def get_busy_intervals(service, time_min, time_max):
     """
     try:
         events_result = service.events().list(
-            calendarId='primary',
+            calendarId="primary",
             timeMin=time_min.isoformat(),
             timeMax=time_max.isoformat(),
             singleEvents=True,
-            orderBy='startTime'
+            orderBy="startTime",
         ).execute()
 
-        events = events_result.get('items', [])
+        events = events_result.get("items", [])
         busy_intervals = []
 
         for event in events:
-            if 'dateTime' in event['start']:
-                start = datetime.datetime.fromisoformat(event['start']['dateTime'])
-                end = datetime.datetime.fromisoformat(event['end']['dateTime'])
+            if "dateTime" in event["start"]:
+                start = datetime.datetime.fromisoformat(event["start"]["dateTime"])
+                end = datetime.datetime.fromisoformat(event["end"]["dateTime"])
                 busy_intervals.append((start, end))
 
         return busy_intervals
@@ -84,12 +85,12 @@ def is_within_working_hours(target_start, target_end, working_hours_config):
     for block in working_hours_config[day_name]:
         allowed_start_dt = datetime.datetime.combine(
             target_start.date(),
-            datetime.datetime.strptime(block["start"], "%H:%M").time()
+            datetime.datetime.strptime(block["start"], "%H:%M").time(),
         ).replace(tzinfo=target_start.tzinfo)
 
         allowed_end_dt = datetime.datetime.combine(
             target_start.date(),
-            datetime.datetime.strptime(block["end"], "%H:%M").time()
+            datetime.datetime.strptime(block["end"], "%H:%M").time(),
         ).replace(tzinfo=target_start.tzinfo)
 
         if target_start >= allowed_start_dt and target_end <= allowed_end_dt:
@@ -145,23 +146,27 @@ def build_focus_sessions(ml_tasks, attention_span):
     current_time = 0
 
     for task in ml_tasks:
-        rem_time = task['duration_minutes']
+        rem_time = task["duration_minutes"]
 
         while rem_time > 0:
             avail = attention_span - current_time
 
             if rem_time <= avail:
-                current_session.append({
-                    "name": task['name'],
-                    "duration": rem_time
-                })
+                current_session.append(
+                    {
+                        "name": task["name"],
+                        "duration": rem_time,
+                    }
+                )
                 current_time += rem_time
                 rem_time = 0
             else:
-                current_session.append({
-                    "name": task['name'],
-                    "duration": avail
-                })
+                current_session.append(
+                    {
+                        "name": task["name"],
+                        "duration": avail,
+                    }
+                )
                 schedule.append(current_session)
                 current_session = []
                 current_time = 0
@@ -181,17 +186,17 @@ def build_focus_sessions(ml_tasks, attention_span):
 def push_to_calendar(ml_tasks, session_data):
     service = get_calendar_service()
 
-    if 'active_event_ids' in session_data:
-        for event_id in session_data['active_event_ids']:
+    if "active_event_ids" in session_data:
+        for event_id in session_data["active_event_ids"]:
             try:
-                service.events().delete(calendarId='primary', eventId=event_id).execute()
+                service.events().delete(calendarId="primary", eventId=event_id).execute()
             except Exception:
                 pass
 
-    attention_span = session_data.get('attention_span', config.DEFAULT_ATTENTION_SPAN)
+    attention_span = session_data.get("attention_span", config.DEFAULT_ATTENTION_SPAN)
     schedule = build_focus_sessions(ml_tasks, attention_span)
 
-    # 🌟 FIX 1: Force the current time to be WIB (UTC+7) instead of server UTC
+    # Use WIB consistently so generated calendar slots match the user's local schedule.
     now = datetime.datetime.now(WIB)
     search_horizon = now + datetime.timedelta(days=config.SCHEDULING_HORIZON_DAYS)
     busy_intervals = get_busy_intervals(service, now, search_horizon)
@@ -200,41 +205,40 @@ def push_to_calendar(ml_tasks, session_data):
         day: [{"start": "08:00", "end": "20:00"}]
         for day in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
     }
-    working_hours_config = session_data.get('working_hours_config', default_config)
+    working_hours_config = session_data.get("working_hours_config", default_config)
 
     current_search_time = now
     generated_ids = []
 
     for i, sess in enumerate(schedule, 1):
         try:
-            duration = sum(t['duration'] for t in sess)
+            duration = sum(t["duration"] for t in sess)
             slot_start, slot_end = find_next_free_slot(
                 duration_mins=duration,
                 current_search_time=current_search_time,
                 working_hours=working_hours_config,
-                busy_intervals=busy_intervals
+                busy_intervals=busy_intervals,
             )
 
             desc = f"Focus Session {i}\n" + "\n".join(
                 [f"- {t['name']} ({t['duration']}m)" for t in sess]
             )
 
-            # 🌟 FIX 2: Remove the hardcoded 'timeZone': 'UTC' tags. 
-            # Because slot_start is now in WIB, isoformat() automatically tells Google the correct timezone!
+            # The ISO timestamp includes the WIB offset, so Google Calendar receives the correct local time.
             event = {
-                'summary': f'Focus Session {i}',
-                'description': desc,
-                'colorId': '11',
-                'start': {'dateTime': slot_start.isoformat()},
-                'end': {'dateTime': slot_end.isoformat()},
+                "summary": f"Focus Session {i}",
+                "description": desc,
+                "colorId": "11",
+                "start": {"dateTime": slot_start.isoformat()},
+                "end": {"dateTime": slot_end.isoformat()},
             }
 
-            event_result = service.events().insert(calendarId='primary', body=event).execute()
-            generated_ids.append(event_result.get('id'))
+            event_result = service.events().insert(calendarId="primary", body=event).execute()
+            generated_ids.append(event_result.get("id"))
         except Exception as e:
             print(f"Warning: Could not create event {i}: {e}")
 
-        break_duration = session_data.get('break_duration', config.DEFAULT_BREAK_DURATION)
+        break_duration = session_data.get("break_duration", config.DEFAULT_BREAK_DURATION)
         current_search_time = slot_end + datetime.timedelta(minutes=break_duration)
 
     return generated_ids

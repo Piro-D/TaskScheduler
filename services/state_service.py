@@ -1,19 +1,14 @@
 import json
-import os
 from pathlib import Path
+
 import config
 
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
-# 🌟 AZURE PERSISTENCE SETUP
-if os.environ.get("WEBSITE_SITE_NAME"):
-    PERSISTENT_DIR = Path("/home/data")
-else:
-    PERSISTENT_DIR = config.RUNTIME_DIR
-
+PERSISTENT_DIR = config.RUNTIME_DIR
 PERSISTENT_DIR.mkdir(parents=True, exist_ok=True)
 
-# 🌟 STRICT FILENAME: No more UUIDs. It is always state.json.
+# A single state file keeps the backlog, event IDs, and scheduler settings together.
 STATE_FILE = PERSISTENT_DIR / "state.json"
 
 
@@ -27,8 +22,10 @@ def default_settings():
         },
     }
 
+
 def default_state():
     return {"tasks": [], "events": [], "settings": default_settings()}
+
 
 def normalize_state(data):
     state = default_state()
@@ -37,6 +34,7 @@ def normalize_state(data):
         state["events"] = data.get("events") or []
         state["settings"].update(data.get("settings") or {})
     return state
+
 
 def load_state():
     if not STATE_FILE.exists():
@@ -48,6 +46,7 @@ def load_state():
     except (OSError, json.JSONDecodeError):
         return default_state()
 
+
 def save_state(tasks, events, settings=None):
     current_settings = settings if settings is not None else load_state()["settings"]
     state = {"tasks": tasks, "events": events, "settings": current_settings}
@@ -55,8 +54,8 @@ def save_state(tasks, events, settings=None):
     with STATE_FILE.open("w", encoding="utf-8") as state_file:
         json.dump(state, state_file, indent=4)
 
+
 def build_working_hours(form):
-    # EXACT ORIGINAL UI LOGIC
     selected_days = form.getlist("working_days")
     return {
         day: [

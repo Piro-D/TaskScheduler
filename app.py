@@ -1,8 +1,7 @@
 import json
-import os
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path # 🌟 ADDED: Required for the absolute path
+from pathlib import Path
 
 from flask import Flask, redirect, render_template, request, session, url_for
 
@@ -10,34 +9,25 @@ import config
 from ml.service import decompose_document, estimate_duration, run_ml_decomposition
 from services.calendar_service import push_to_calendar
 from services.oauth_service import (
+    clear_oauth_state,
     get_authorization_url,
     handle_oauth_callback,
-    save_oauth_state,
     load_oauth_state,
-    clear_oauth_state,
+    save_oauth_state,
 )
 from services.state_service import build_working_hours, load_state, save_state
 from services.upload_utils import remove_file, save_upload
-from werkzeug.middleware.proxy_fix import ProxyFix
 
 
 app = Flask(__name__, static_folder="static", static_url_path="/static")
 app.secret_key = config.SECRET_KEY
 app.config["UPLOAD_FOLDER"] = str(config.UPLOAD_FOLDER)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
-
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_port=1, x_for=1)
-
-# 🌟 SESSION CONFIGURATION FOR CLOUD DEPLOYMENT
-# Configure secure session cookies for HTTPS in production
-if os.getenv("WEBSITE_SITE_NAME"):  # Running on Azure
-    app.config["SESSION_COOKIE_SECURE"] = True
-    app.config["SESSION_COOKIE_HTTPONLY"] = True
-    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-else:  # Local development
-    app.config["SESSION_COOKIE_SECURE"] = False
-    app.config["SESSION_COOKIE_HTTPONLY"] = True
-    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=False,
+)
 
 
 def redirect_home(message=None, tab="pipeline"):
@@ -254,8 +244,8 @@ def clear_backlog():
             sync_calendar([])
         except Exception:
             pass
-    
-    # 🔒 Clear local state as well
+
+    # Clear persisted local tasks after removing any matching calendar events.
     save_state([], [])
     return redirect_home("All tasks cleared.")
 

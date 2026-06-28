@@ -2,10 +2,8 @@
 Google OAuth service for handling authentication flow securely via Environment Variables.
 """
 import json
-import os
-from pathlib import Path
 
-from flask import session, url_for
+from flask import session
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 import config
@@ -16,14 +14,8 @@ OAUTH_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
 LOCAL_REDIRECT_URI = "http://localhost:8080/oauth2callback"
 
 
-def is_local_development():
-    """Check if running in local development mode (not in Azure)."""
-    # Azure App Service sets WEBSITE_SITE_NAME environment variable
-    return not os.getenv("WEBSITE_SITE_NAME")
-
-
 def get_client_config():
-    """Builds the Google OAuth config dictionary dynamically from environment variables."""
+    """Build the OAuth client config from local environment variables."""
     return {
         "web": {
             "client_id": config.CLIENT_ID,
@@ -62,12 +54,11 @@ def clear_oauth_state():
 
 
 def get_authorization_url():
-    """Generates the secure login URL to send to Google."""
+    """Generate the local Google OAuth login URL."""
     try:
         flow = Flow.from_client_config(get_client_config(), scopes=config.SCOPES)
 
-        redirect_uri = get_local_redirect_uri() if is_local_development() else url_for('oauth2callback', _external=True).replace('http://', 'https://')
-        flow.redirect_uri = redirect_uri
+        flow.redirect_uri = get_local_redirect_uri()
 
         authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true', prompt='consent')
         return authorization_url, state, flow.code_verifier
@@ -76,7 +67,7 @@ def get_authorization_url():
 
 
 def handle_oauth_callback(authorization_response, state, code_verifier):
-    """Handle the OAuth callback after user grants permission."""
+    """Exchange the local OAuth callback for Google credentials."""
     try:
         if not state or not code_verifier:
             raise RuntimeError("Missing OAuth state or code verifier. Check session/cookie persistence.")
@@ -84,14 +75,9 @@ def handle_oauth_callback(authorization_response, state, code_verifier):
         flow = Flow.from_client_config(get_client_config(), scopes=config.SCOPES, state=state)
         flow.code_verifier = code_verifier
 
-        redirect_uri = get_local_redirect_uri() if is_local_development() else url_for('oauth2callback', _external=True).replace('http://', 'https://')
-        flow.redirect_uri = redirect_uri
+        flow.redirect_uri = get_local_redirect_uri()
 
-        if is_local_development():
-            flow.fetch_token(authorization_response=authorization_response)
-        else:
-            secure_response_url = authorization_response.replace('http://', 'https://')
-            flow.fetch_token(authorization_response=secure_response_url)
+        flow.fetch_token(authorization_response=authorization_response)
 
         return credentials_to_dict(flow.credentials)
     except Exception as e:
