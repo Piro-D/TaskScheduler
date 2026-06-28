@@ -1,19 +1,38 @@
 # Project Description
-
-This is a Machine Learning Project made by 3 people : 
+This is a Machine Learning Project made by 3 people :
 - Jason Nicholas Rahardjo - 2802411411
 - Arnaldo Setiawan - 2802410232
 - Antonius Steven - 2802415870
 
-There are 2 branches for deployment, one for local deployment, and the other for azure cloud deployment.
+There are 3 branches for deployment, one for local deployment, and the other for azure cloud deployment.
+- main -> Azure Cloud Deployment
+- API_Based_LLM_Local_Deployment -> Local Deployment (recommended for testing)
+- RM_Local_Model -> Local Model LLM using Ollama
+To change branches in VScode, please go to the bottom left of VScode, and change the selected branch to the target branch.
 
-This branch supports local deployment only. The following steps explain how to run the project on your machine.
+### This branch supports local deployment only. The following steps explain how to run the project on your machine.
 
 Note for MLFlow code:
 - Due to dependency conflicts, ML flow needs to be manually installed through the terminal ("pip install mlflow")
 - The ML Flow code is stored inside duration_estimator.py, uncomment it if you want to run and produce the artifacts
 - MLFlow artifacts are named ml_runs.zip and mlflow.db
 
+
+
+# Project Structure
+
+- app.py Flask routes and request orchestration
+- config.py Shared paths and app settings
+- services/ Calendar, OAuth, upload, and saved-state helpers
+- ml/ LLM decomposition and duration-estimation pipeline + preprocessing file
+- templates/ Flask/Jinja pages
+- static/ CSS and browser assets
+- Datasets/ Source training data
+- TestDocuments/ Local sample documents
+- instance/ Ignored runtime schedule state
+- artifacts/ Ignored generated CSV/JSON outputs
+- uploads/ Ignored temporary uploaded files
+- models/ Ignored local model files
 
 
 
