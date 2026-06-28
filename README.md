@@ -1,6 +1,4 @@
-============================================================
 # Project Description
-============================================================
 
 This is a Machine Learning Project made by 3 people : 
 - Jason Nicholas Rahardjo - 2802411411
@@ -17,17 +15,16 @@ Note for MLFlow code:
 - MLFlow artifacts are named ml_runs.zip and mlflow.db
 
 
-============================================================
+
+
 # Local Deployment Guide
-============================================================
 
 For local deployment, there are 2 things we need to do. 
 - First is project intialization
 - Second is API setup (Google calendar & Groq)
 
-=============================
+
 ## Project Initialization
-=============================
 
 1. Create a virtual environment ( 'python -m venv .venv' )
 
@@ -56,9 +53,7 @@ For local deployment, there are 2 things we need to do.
 11. Test the Pipeline: Submit any project documents (Sample documents are already included in the .\TestDocuments folder).
 
 
-=============================
 ## API Setup
-=============================
 
 ### API Setup 1: Groq API Initialization (Replaces Ollama)
 
