@@ -5,7 +5,8 @@ import config
 
 WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
-# 🌟 AZURE PERSISTENCE SETUP
+# Azure App Service persists /home/data across worker restarts.
+# Local runs keep state in the repository instance directory.
 if os.environ.get("WEBSITE_SITE_NAME"):
     PERSISTENT_DIR = Path("/home/data")
 else:
@@ -13,7 +14,7 @@ else:
 
 PERSISTENT_DIR.mkdir(parents=True, exist_ok=True)
 
-# 🌟 STRICT FILENAME: No more UUIDs. It is always state.json.
+# Use one stable state file so each request reads and updates the same backlog.
 STATE_FILE = PERSISTENT_DIR / "state.json"
 
 
@@ -56,7 +57,7 @@ def save_state(tasks, events, settings=None):
         json.dump(state, state_file, indent=4)
 
 def build_working_hours(form):
-    # EXACT ORIGINAL UI LOGIC
+    # Preserve the selected weekday blocks from the settings form.
     selected_days = form.getlist("working_days")
     return {
         day: [

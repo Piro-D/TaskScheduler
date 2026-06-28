@@ -169,46 +169,47 @@ def estimate_tasks_from_llm(tasks_list: list, buffer=1.2) -> list:
     return enriched_tasks
 
 
-# ML Flow Assignment
+# Optional MLflow experiment logging is disabled on the cloud deployment branch.
+# Uncomment this block only when generating local training artifacts.
 
-def run_mlflow_pipeline():
-    import mlflow
-    import mlflow.sklearn
+# def run_mlflow_pipeline():
+#     import mlflow
+#     import mlflow.sklearn
 
-    mlflow.set_experiment("ADHD Task Duration Estimation")
+#     mlflow.set_experiment("ADHD Task Duration Estimation")
 
-    training_result = train_evaluate_and_save()
-    if training_result is None:
-        return
+#     training_result = train_evaluate_and_save()
+#     if training_result is None:
+#         return
 
-    with mlflow.start_run():
-        mlflow.log_params(training_result["params"])
-        mlflow.log_metrics(training_result["metrics"])
+#     with mlflow.start_run():
+#         mlflow.log_params(training_result["params"])
+#         mlflow.log_metrics(training_result["metrics"])
 
-        model_info = mlflow.sklearn.log_model(
-            training_result["model"],
-            "duration_model",
-            input_example=training_result["x_test"].head(5),
-        )
+#         model_info = mlflow.sklearn.log_model(
+#             training_result["model"],
+#             "duration_model",
+#             input_example=training_result["x_test"].head(5),
+#         )
 
-        mlflow.log_artifact(str(MODELS_DIR / "duration_model.pkl"))
-        mlflow.log_artifact(str(MODELS_DIR / "encoder_task_type.pkl"))
-        mlflow.log_artifact(str(DATA_PATH))
+#         mlflow.log_artifact(str(MODELS_DIR / "duration_model.pkl"))
+#         mlflow.log_artifact(str(MODELS_DIR / "encoder_task_type.pkl"))
+#         mlflow.log_artifact(str(DATA_PATH))
 
-        if config.CLEANED_DATASET_FILE.exists():
-            mlflow.log_artifact(str(config.CLEANED_DATASET_FILE))
+#         if config.CLEANED_DATASET_FILE.exists():
+#             mlflow.log_artifact(str(config.CLEANED_DATASET_FILE))
 
-        mlflow.set_tag(
-            "Training Info",
-            "Random Forest model for ADHD task duration estimation",
-        )
+#         mlflow.set_tag(
+#             "Training Info",
+#             "Random Forest model for ADHD task duration estimation",
+#         )
 
-    return model_info
+#     return model_info
 
 
-# Testing of the Machine Learning Component
+# Manual smoke test for the duration estimator.
 if __name__ == "__main__":
-    run_mlflow_pipeline()
+    # run_mlflow_pipeline()
 
     print("SAMPLE PREDICTION")
     result = predict_duration_adhd(7200, 5, "coding")

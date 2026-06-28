@@ -1,7 +1,7 @@
 import json
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path # 🌟 ADDED: Required for the absolute path
+from pathlib import Path
 
 from flask import Flask, redirect, render_template, request, session, url_for
 
@@ -19,6 +19,8 @@ app.secret_key = config.SECRET_KEY
 app.config["UPLOAD_FOLDER"] = str(config.UPLOAD_FOLDER)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
+# Azure App Service terminates HTTPS before forwarding requests to Flask.
+# ProxyFix lets url_for(..., _external=True) preserve the original scheme and host.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 
@@ -64,9 +66,9 @@ def append_tasks(tasks, new_tasks):
 
 
 def save_feedback(ratings, comments):
-    # 🌟 THE FIX: Hardcoding the absolute Azure path to escape the temporary RAM
+    # Keep feedback on Azure's deployed app path instead of transient worker storage.
     feedback_path = Path("/home/site/wwwroot/feedback.json")
-    
+
     feedback_entries = []
     if feedback_path.exists():
         try:
@@ -230,7 +232,7 @@ def clear_backlog():
         except Exception:
             pass
     
-    # 🔒 Clear local state as well
+    # Clear the persisted backlog after removing the matching calendar events.
     save_state([], [])
     return redirect_home("All tasks cleared.")
 

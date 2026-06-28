@@ -191,7 +191,7 @@ def push_to_calendar(ml_tasks, session_data):
     attention_span = session_data.get('attention_span', config.DEFAULT_ATTENTION_SPAN)
     schedule = build_focus_sessions(ml_tasks, attention_span)
 
-    # 🌟 FIX 1: Force the current time to be WIB (UTC+7) instead of server UTC
+    # Schedule from WIB so Azure's server timezone does not shift local study blocks.
     now = datetime.datetime.now(WIB)
     search_horizon = now + datetime.timedelta(days=config.SCHEDULING_HORIZON_DAYS)
     busy_intervals = get_busy_intervals(service, now, search_horizon)
@@ -219,8 +219,7 @@ def push_to_calendar(ml_tasks, session_data):
                 [f"- {t['name']} ({t['duration']}m)" for t in sess]
             )
 
-            # 🌟 FIX 2: Remove the hardcoded 'timeZone': 'UTC' tags. 
-            # Because slot_start is now in WIB, isoformat() automatically tells Google the correct timezone!
+            # isoformat() includes the WIB offset, so Google Calendar receives the intended local time.
             event = {
                 'summary': f'Focus Session {i}',
                 'description': desc,

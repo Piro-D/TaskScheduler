@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# 🌟 THE BRIDGE: Load variables from the .env file (Azure uses App Settings natively)
+# Load local .env values when present; Azure App Service provides the same keys as App Settings.
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -14,8 +14,8 @@ UPLOAD_FOLDER = BASE_DIR / "uploads"
 for directory in (RUNTIME_DIR, ARTIFACTS_DIR, UPLOAD_FOLDER):
     directory.mkdir(exist_ok=True)
 
-# 🔒 SECURITY UPDATES FOR CLOUD DEPLOYMENT
-# Azure MUST have FLASK_SECRET_KEY set in its Environment Variables.
+# Azure deployments must set FLASK_SECRET_KEY in App Settings.
+# The fallback is only for local imports and should not be used in production.
 SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "fallback_local_dev_key_only")
 
 # API Keys
@@ -32,7 +32,7 @@ CLIENT_SECRETS_FILE = "credentials.json"
 
 # File Upload Configuration
 ALLOWED_EXTENSIONS = {'.pdf', '.doc', '.docx'}
-ACTIVE_SCHEDULE_FILE = RUNTIME_DIR / "active_schedule.json" # Kept for fallback, overridden in state_service.py
+ACTIVE_SCHEDULE_FILE = RUNTIME_DIR / "active_schedule.json"  # Legacy fallback; state_service.py uses state.json.
 CLEANED_DATASET_FILE = ARTIFACTS_DIR / "cleaned_dataset.csv"
 TASK_ESTIMATES_FILE = ARTIFACTS_DIR / "task_estimates.json"
 FEEDBACK_FILE = ARTIFACTS_DIR / "feedback.json"
@@ -52,7 +52,7 @@ MAX_ATTENTION_SPAN = 120
 MIN_BREAK_DURATION = 0
 MAX_BREAK_DURATION = 60
 
-# 🔒 Disable Insecure Transport in Production (Azure uses HTTPS)
+# Allow insecure OAuth redirects only during explicit local development.
 if os.getenv("FLASK_ENV") == "development":
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 elif 'OAUTHLIB_INSECURE_TRANSPORT' in os.environ:

@@ -22,11 +22,11 @@ def get_authorization_url():
     """Generates the secure login URL to send to Google."""
     try:
         flow = Flow.from_client_config(get_client_config(), scopes=config.SCOPES)
-        
-        # 🌟 FIX 1: Force HTTPS when FIRST requesting the login screen from Google
+
+        # Azure forwards requests to Flask over HTTP, but Google OAuth requires the public HTTPS URL.
         secure_redirect = url_for('oauth2callback', _external=True).replace('http://', 'https://')
         flow.redirect_uri = secure_redirect
-        
+
         authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true', prompt='consent')
         return authorization_url, state, flow.code_verifier
     except Exception as e:
@@ -35,15 +35,15 @@ def get_authorization_url():
 def handle_oauth_callback(authorization_response, state, code_verifier):
     """Handle the OAuth callback after user grants permission."""
     try:
-        # 🌟 FIX 2: Change the incoming callback from Azure from HTTP to HTTPS
+        # Normalize Azure's internal HTTP callback back to the external HTTPS URL registered with Google.
         secure_response_url = authorization_response.replace('http://', 'https://')
 
         flow = Flow.from_client_config(get_client_config(), scopes=config.SCOPES, state=state)
-        
-        # 🌟 FIX 3: Force HTTPS when verifying the token with Google
+
+        # Token exchange must use the same HTTPS redirect URI as the authorization request.
         secure_redirect = url_for('oauth2callback', _external=True).replace('http://', 'https://')
         flow.redirect_uri = secure_redirect
-        
+
         flow.code_verifier = code_verifier
         flow.fetch_token(authorization_response=secure_response_url)
         return credentials_to_dict(flow.credentials)

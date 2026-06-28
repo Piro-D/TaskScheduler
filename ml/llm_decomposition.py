@@ -16,9 +16,10 @@ from groq import Groq
 
 import config
 
-# Configuration
-MAX_DOCUMENT_CHARS = 15000  # Groq handles much larger contexts than local models
-DEFAULT_MODEL = "qwen/qwen3-32b"  # Native Groq Qwen model, replicating your local architecture
+# Groq handles larger context windows than the retired local model, but uploads are capped
+# to keep latency predictable on Azure App Service.
+MAX_DOCUMENT_CHARS = 15000
+DEFAULT_MODEL = "qwen/qwen3-32b"
 
 
 def extract_text(file_path: str) -> str:
@@ -122,7 +123,7 @@ def generate_tasks(document_text: str, model: str = DEFAULT_MODEL) -> tuple:
         document_text += " [TRUNCATED DOCUMENT]"
 
     start_time = time.perf_counter()
-    print(f"\n🧠 [Groq API] Sending payload to {model}...", flush=True)
+    print(f"\n[Groq API] Sending payload to {model}...", flush=True)
 
     try:
         response = client.chat.completions.create(
@@ -175,10 +176,10 @@ def process_document(file_path: str) -> dict:
         }
 
 
-# Testing of the LLM Decomposition component
+# Manual smoke test for the LLM decomposition component.
 if __name__ == "__main__":
     try:
-        # Assumes document3.docx exists in your TestDocuments folder
+        # Assumes document3.docx exists in the TestDocuments folder.
         file_path = config.BASE_DIR / "TestDocuments" / "document3.docx"
         result = process_document(str(file_path))
         print(json.dumps(result, indent=4))
