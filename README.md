@@ -18,6 +18,56 @@ Note for MLFlow code:
 - MLFlow artifacts are named ml_runs.zip and mlflow.db
 
 
+# API Setup
+Before deploying, we need to first setup the Groq API and the google calendar API.
+
+## Groq API setup
+
+1. Go to the Groq Cloud Console (Link: https://console.groq.com/).
+
+2. Create an account or log in.
+
+3. On the left sidebar, go to API Keys.
+
+4. Click Create API Key.
+
+5. Copy the generated key and keep it saved GROQ_API_KEY
+
+## Google Calendar API Setup
+
+1. Go to Google Cloud Console (Link: https://console.cloud.google.com/home).
+
+2. Next to the Google Cloud logo in the top left, select the project dropdown and Create a New Project.
+
+3. Click the top left hamburger menu, go to APIs & Services > Library. Search for Google Calendar API and click Enable.
+
+4. Go back to the top left menu, and select APIs & Services > OAuth consent screen.
+
+5. After this, configure the Google Auth Platform by clicking Get Started.
+
+6. Select External as the User Type and click Create.
+
+7. Fill in the required app information (App name, support email, developer email) and click Save and Continue through the Scopes phase.
+
+8. Next go to Audience and under the Test Users phase, click Add Users. Add the specific Gmail address you intend to test the app with, then click Save.
+
+9. Now go to APIs & Services > Credentials on the left sidebar.
+
+10. Click Create Credentials at the top, and select OAuth Client ID.
+
+11. Under Application type, select Web application and name it "Flask Local Client".
+
+12. For Authorized redirect URIs, we will later add an URL after creating the azure deployment. (Note : Very important step to ensure the system works)
+
+13. Click Create.
+
+14. Copy your Client ID and save it.
+
+15. Copy your Client Secret and save it.
+
+
+
+
 
 # ML Task-Scheduler: Azure Deployment Guide
 
@@ -52,11 +102,12 @@ Add the following key-value pairs:
 - GROQ_API_KEY: Your API key from the Groq Console.
 Click Apply to save the settings.
 
+
 ## 3. Configure the Custom Startup Command
 
 By default, Azure's load balancers may time out long-running AI inference requests. To prevent Gunicorn from prematurely dropping requests, a custom startup command is required.
 
-On the left sidebar, navigate to Settings > Configuration > General Settings.
+On the left sidebar, navigate to Settings > Configuration > Stack Settings.
 
 Locate the Startup Command field and enter the following:
 
@@ -80,3 +131,23 @@ Select the Organization, Repository, and the specific Branch you wish to deploy 
 
 Click Save.
 
+
+## 5. Add deployed URL to Google Authorized Redirect URLs
+
+1. Copy the URL of the deployed website from Overview -> Essentials -> Default Domain
+
+2. Go back to Google Cloud Console (https://console.cloud.google.com/home)
+
+3. On the left dropdown hamburger menu, go to 'APIs and services' > 'Credentials'
+
+4. Click on the created OAuth 2.0 Client IDs named 'Flask Local Client'
+
+5. Add the copied URL of the depolyed website with the following format. ('https://' + copied URL + '/oauth2callback') 
+Example : 'https://taskschedulertest-f5djccawbzdpa4af.indonesiacentral-01.azurewebsites.net/oauth2callback'
+
+6. Click Save and wait a moment after changing.
+
+
+The deployed website should operate properly after following the steps.
+
+Note : If any erros are experienced during login, make sure the google account used to login matches with the google account added in google cloud console, make sure the environment variables inserted in azure are correct, and the authorized redirect link is inserted with the proper format.
