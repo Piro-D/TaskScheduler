@@ -1,8 +1,4 @@
 # Project Description
-This is a Machine Learning Project made by 3 people :
-- Jason Nicholas Rahardjo - 2802411411
-- Arnaldo Setiawan - 2802410232
-- Antonius Steven - 2802415870
 
 There are 3 branches for deployment, one for local deployment, and the other for azure cloud deployment.
 - main -> Azure Cloud Deployment
